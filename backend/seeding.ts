@@ -1,4 +1,4 @@
-import { Unit, Jabatan, LoginHistory } from "./index"; // Adjust the import path
+import { Employee, Jabatan, Unit, LoginHistory } from "./index"; // Adjust the import path
 import bcrypt from "bcrypt";
 import { faker } from "@faker-js/faker";
 
@@ -10,49 +10,70 @@ export const seedData = async () => {
         nama: faker.person.jobTitle(),
       });
     }
+
+    // Create random Units
+    for (let i = 0; i < 5; i++) {
+      await Unit.create({
+        nama: faker.company.name(),
+        lokasi: faker.address.city(),
+      });
+    }
+
     // Seed the admin user with password 'admin'
     const hashedAdminPassword = await bcrypt.hash("admin", 10);
 
     // Fetch all Jabatans
     const jabatans = await Jabatan.findAll();
-    // // Create Admin Unit
-    // await Unit.create({
-    //   nama: "Admin User",
-    //   username: "admin",
-    //   password: hashedAdminPassword,
-    //   unit: "Admin Unit",
-    //   jabatan: "admin",
-    //   tanggalBergabung: new Date(),
-    // });
-    const units: any[] = []; // Hold all created units for easy access
-    // Create random Units
-    for (let i = 0; i < 20; i++) {
+    const units = await Unit.findAll(); // Fetch all units
+
+    // Find admin employee
+    const admin = await Employee.findOne({ where: { username: "admin" } });
+
+    // Create Admin Employee if not admin
+    if (!admin) {
+      await Employee.create({
+        nama: "Admin User",
+        username: "admin",
+        password: hashedAdminPassword,
+        unitName: units[0].nama,
+        jabatan: [jabatans[0], jabatans[1]],
+        tanggalBergabung: new Date(),
+      });
+    }
+
+    // Create random Employees and assign them to random units and jabatans
+    const createdEmployees: any[] = []; // Hold all created employees for easy access
+    for (let i = 0; i < 10; i++) {
       const randomJabatans = faker.helpers.arrayElements(
         jabatans.map((j) => j.nama),
         faker.number.int({ min: 1, max: 3 })
       );
 
-      let unit = await Unit.create({
+      const randomUnit = faker.helpers.arrayElement(units); // Random unit for each employee
+
+      let employee = await Employee.create({
         nama: faker.person.fullName(),
         username: faker.internet.username(),
         password: await bcrypt.hash("password", 10),
-        unit: faker.company.name(),
+        unitName: randomUnit.nama,
         jabatan: randomJabatans,
         tanggalBergabung: faker.date.past(),
       });
-      // Store the created unit
-      units.push(unit);
+
+      // Store the created employee
+      createdEmployees.push(employee);
     }
 
     // Add 200 login history records
     const totalLoginHistories = 200;
     for (let i = 0; i < totalLoginHistories; i++) {
-      const randomUnit = faker.helpers.arrayElement(units); // Random unit for each login history
+      const randomEmployee = faker.helpers.arrayElement(createdEmployees); // Random employee for each login history
       await LoginHistory.create({
-        unitId: randomUnit.id,
+        username: randomEmployee.username,
         loginAt: faker.date.past(), // Random login date
       });
     }
+
     console.log("Seeding completed!");
   } catch (err) {
     console.error("Error during seeding:", err);

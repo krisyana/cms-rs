@@ -11,34 +11,25 @@ const Stats = () => {
 
   useEffect(() => {
     const getStats = async () => {
-      const { data } = await fetchStats();
+      const { data } = await fetchStats({ startDate, endDate });
       setStats(data);
       setFilteredData(data.topLoginUsers); // Default to full dataset
       setLoading(false);
     };
     getStats();
-  }, []);
+  }, [startDate, endDate]);
 
   const handleFilter = () => {
     if (!startDate || !endDate) {
       alert("Please select both start and end dates");
       return;
     }
-
-    const filtered = stats.topLoginUsers.filter((user) => {
-      const loginDate = new Date(user.loginDate); // Assuming `loginDate` is part of `topLoginUsers`
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      return loginDate >= start && loginDate <= end;
-    });
-
-    setFilteredData(filtered);
   };
 
   const columns = [
     {
-      name: "Unit ID",
-      selector: (row) => row.unitId,
+      name: "Unit Name",
+      selector: (row) => row.username,
       sortable: true,
     },
     {
@@ -47,10 +38,9 @@ const Stats = () => {
       sortable: true,
     },
     {
-      name: "Last Login Date",
-      selector: (row) => row.loginDate,
+      name: " Date",
+      selector: (row) => row.loginCount,
       sortable: true,
-      format: (row) => new Date(row.loginDate).toLocaleDateString(), // Format date
     },
   ];
 
@@ -69,12 +59,20 @@ const Stats = () => {
         </h2>
         <div className="mb-6">
           <p className="text-lg text-gray-700">
+            <span className="font-semibold">Total Employee:</span>{" "}
+            {stats.employeeCount}
+          </p>
+          <p className="text-lg text-gray-700">
             <span className="font-semibold">Total Units:</span>{" "}
             {stats.unitCount}
           </p>
           <p className="text-lg text-gray-700">
             <span className="font-semibold">Total Jabatans:</span>{" "}
             {stats.jabatanCount}
+          </p>
+          <p className="text-lg text-gray-700">
+            <span className="font-semibold">Total Login:</span>{" "}
+            {stats.loginCount}
           </p>
         </div>
         <h3 className="text-xl font-semibold text-gray-800 mb-4">
@@ -107,12 +105,6 @@ const Stats = () => {
               className="border border-gray-300 rounded px-3 py-2"
             />
           </div>
-          <button
-            onClick={handleFilter}
-            className="bg-blue-500 items-end h-8 mb-2 px-4 text-sm text-indigo-100 transition-colors duration-150 bg-indigo-700 rounded-lg focus:shadow-outline hover:bg-indigo-800"
-          >
-            Filter
-          </button>
         </div>
 
         {/* Data Table */}

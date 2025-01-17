@@ -14,6 +14,12 @@ API.interceptors.request.use((req) => {
 // Auth endpoints
 export const login = (credentials) => API.post("/login", credentials);
 
+// Employee endpoints
+export const fetchemployees = () => API.get("/employees");
+export const createEmployee = (unitData) => API.post("/employees", unitData);
+export const updateEmployee = (id, unitData) => API.put(`/employees/${id}`, unitData);
+export const deleteEmployee = (id) => API.delete(`/employees/${id}`);
+
 // Units endpoints
 export const fetchUnits = () => API.get("/units");
 export const createUnit = (unitData) => API.post("/units", unitData);

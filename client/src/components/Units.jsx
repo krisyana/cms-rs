@@ -1,216 +1,158 @@
-import React, { useState, useEffect } from "react";
-import {
-  fetchUnits,
-  createUnit,
-  deleteUnit,
-  fetchJabatans,
-  createJabatan,
-} from "../api";
-import Select from "react-select";
+import React, { useEffect, useState } from "react";
+import axios from "axios";
 import DataTable from "react-data-table-component";
 
 const Units = () => {
   const [units, setUnits] = useState([]);
-  const [jabatans, setJabatans] = useState([]);
-  const [newUnit, setNewUnit] = useState({
-    nama: "",
-    username: "",
-    password: "",
-    unit: "",
-    jabatan: [],
-    tanggalBergabung: "",
-  });
-  const [loading, setLoading] = useState(false);
+  const [nama, setNama] = useState("");
+  const [editId, setEditId] = useState(null);
 
-  useEffect(() => {
-    const loadInitialData = async () => {
-      setLoading(true);
-      const [unitsData, jabatansData] = await Promise.all([
-        fetchUnits(),
-        fetchJabatans(),
-      ]);
-      setUnits(unitsData.data);
-      setJabatans(
-        jabatansData.data.map((jabatan) => ({
-          value: jabatan.id,
-          label: jabatan.nama,
-        }))
+  const API_URL = "http://localhost:3000/units"; // Update the endpoint to match your API URL for units
+  const token = localStorage.getItem("authToken");
+
+  // Fetch units data
+  const fetchUnits = async () => {
+    try {
+      const response = await axios.get(API_URL, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUnits(response.data);
+    } catch (error) {
+      console.error("Error fetching units:", error);
+    }
+  };
+
+  // Handle adding a new unit
+  const handleAddUnit = async () => {
+    try {
+      const response = await axios.post(
+        API_URL,
+        { nama },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-      setLoading(false);
-    };
-    loadInitialData();
+      setUnits([...units, response.data]);
+      setNama("");
+    } catch (error) {
+      console.error("Error adding unit:", error);
+    }
+  };
+
+  // Handle editing an existing unit
+  const handleEditUnit = (unit) => {
+    setEditId(unit.id);
+    setNama(unit.nama);
+  };
+
+  // Handle updating the unit
+  const handleUpdateUnit = async () => {
+    try {
+      const response = await axios.put(
+        `${API_URL}/${editId}`,
+        { nama },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setUnits(
+        units.map((unit) => (unit.id === editId ? response.data : unit))
+      );
+      setEditId(null);
+      setNama("");
+    } catch (error) {
+      console.error("Error updating unit:", error);
+    }
+  };
+
+  // Handle deleting a unit
+  const handleDeleteUnit = async (id) => {
+    try {
+      await axios.delete(`${API_URL}/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUnits(units.filter((unit) => unit.id !== id));
+    } catch (error) {
+      console.error("Error deleting unit:", error);
+    }
+  };
+
+  // Fetch units data on component mount
+  useEffect(() => {
+    fetchUnits();
   }, []);
 
-  const handleCreate = async () => {
-    const { data } = await createUnit(newUnit);
-    setUnits([...units, data]);
-    setNewUnit({
-      nama: "",
-      username: "",
-      password: "",
-      unit: "",
-      jabatan: [],
-      tanggalBergabung: "",
-    });
-  };
-
-  const handleDelete = async (id) => {
-    await deleteUnit(id);
-    setUnits(units.filter((unit) => unit.id !== id));
-  };
-
-  const handleJabatanCreate = async (inputValue) => {
-    const { data } = await createJabatan({ nama: inputValue });
-    const newJabatanOption = { value: data.id, label: data.nama };
-    setJabatans([...jabatans, newJabatanOption]);
-    return newJabatanOption;
-  };
-
+  // Define columns for the DataTable
   const columns = [
-    { name: "Name", selector: (row) => row.nama, sortable: true },
-    { name: "Username", selector: (row) => row.username, sortable: true },
-    { name: "Unit", selector: (row) => row.unit, sortable: true },
     {
-      name: "Jabatan",
-      cell: (row) => {
-        // Check if jabatan is a string and try to parse it into an array
-        let jabatanArray = row.jabatan;
-        if (typeof jabatanArray === "string") {
-          try {
-            jabatanArray = JSON.parse(jabatanArray);
-          } catch (error) {
-            console.error("Error parsing jabatan:", error);
-          }
-        }
-
-        return Array.isArray(jabatanArray) ? (
-          <div className="space-y-1 py-1">
-            {jabatanArray.map((jabatanItem, index) => (
-              <div
-                key={index}
-                className="bg-blue-100 text-blue-800 p-2 rounded-md shadow-sm"
-              >
-                {jabatanItem}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <span className="text-gray-700">{jabatanArray}</span> // Fallback if jabatan isn't an array
-        );
-      },
+      name: "ID",
+      selector: (row) => row.id,
+      sortable: true,
+    },
+    {
+      name: "Name",
+      selector: (row) => row.nama,
       sortable: true,
     },
     {
       name: "Actions",
       cell: (row) => (
-        <button
-          onClick={() => handleDelete(row.id)}
-          className="text-white bg-red-500 hover:bg-red-600 px-3 py-1 rounded"
-        >
-          Delete
-        </button>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => handleEditUnit(row)}
+            className="px-2 py-1 bg-yellow-500 text-white rounded-md hover:bg-yellow-600"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => handleDeleteUnit(row.id)}
+            className="px-2 py-1 bg-red-500 text-white rounded-md hover:bg-red-600"
+          >
+            Delete
+          </button>
+        </div>
       ),
+      ignoreRowClick: true,
+      allowOverflow: true,
+      button: true,
     },
   ];
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <div className="bg-white shadow-md rounded-lg p-6 max-w-4xl mx-auto">
-        <h2 className="text-2xl font-bold mb-6">Manage Units</h2>
-
-        <form
-          className="mb-6 grid grid-cols-1 gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleCreate();
-          }}
-        >
-          <input
-            type="text"
-            placeholder="Name"
-            value={newUnit.nama}
-            onChange={(e) => setNewUnit({ ...newUnit, nama: e.target.value })}
-            className="border border-gray-300 rounded-lg p-2"
-            required
-          />
-          <input
-            type="text"
-            placeholder="Username"
-            value={newUnit.username}
-            onChange={(e) =>
-              setNewUnit({ ...newUnit, username: e.target.value })
-            }
-            className="border border-gray-300 rounded-lg p-2"
-            required
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={newUnit.password}
-            onChange={(e) =>
-              setNewUnit({ ...newUnit, password: e.target.value })
-            }
-            className="border border-gray-300 rounded-lg p-2"
-            required
-          />
-          <input
-            type="text"
-            placeholder="Unit"
-            value={newUnit.unit}
-            onChange={(e) => setNewUnit({ ...newUnit, unit: e.target.value })}
-            className="border border-gray-300 rounded-lg p-2"
-            required
-          />
-          <Select
-            isMulti
-            options={jabatans}
-            value={newUnit.jabatan}
-            onChange={(selected) =>
-              setNewUnit({ ...newUnit, jabatan: selected })
-            }
-            onCreateOption={async (inputValue) => {
-              // Only create a new jabatan if inputValue is not empty
-              if (inputValue.trim()) {
-                const newOption = await handleJabatanCreate(inputValue);
-                setNewUnit({
-                  ...newUnit,
-                  jabatan: [...newUnit.jabatan, newOption],
-                });
-              }
-            }}
-            className="border border-gray-300 rounded-lg"
-            placeholder="Select or create Jabatans"
-            isClearable
-            isSearchable
-            noOptionsMessage={() => "No results found"}
-            createOptionPosition="first" // Ensures new option is added first
-            getNewOptionData={(inputValue) => inputValue} // Provides the input text for new option
-          />
-          <input
-            type="date"
-            value={newUnit.tanggalBergabung}
-            onChange={(e) =>
-              setNewUnit({ ...newUnit, tanggalBergabung: e.target.value })
-            }
-            className="border border-gray-300 rounded-lg p-2"
-            required
-          />
-          <button
-            type="submit"
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-          >
-            Add Unit
-          </button>
-        </form>
-
-        <DataTable
-          columns={columns}
-          data={units}
-          progressPending={loading}
-          pagination
-          className="border border-gray-300 rounded-lg"
+    <div className="max-w-4xl mx-auto mt-10 p-6 bg-white shadow-md rounded-md">
+      <h1 className="text-2xl font-bold mb-6 text-gray-700">Manage Units</h1>
+      <div className="flex space-x-4 mb-6">
+        <input
+          type="text"
+          value={nama}
+          onChange={(e) => setNama(e.target.value)}
+          placeholder="Enter unit name"
+          className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring focus:ring-blue-300"
         />
+        {editId ? (
+          <button
+            onClick={handleUpdateUnit}
+            className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
+          >
+            Update
+          </button>
+        ) : (
+          <button
+            onClick={handleAddUnit}
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+          >
+            Add
+          </button>
+        )}
       </div>
+
+      {/* DataTable */}
+      <DataTable
+        title="Unit List"
+        columns={columns}
+        data={units}
+        pagination
+        highlightOnHover
+        striped
+        responsive
+        className="rounded-lg border border-gray-300"
+      />
     </div>
   );
 };

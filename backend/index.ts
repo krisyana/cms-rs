@@ -1,9 +1,16 @@
 import express, { Request, Response } from "express";
 import bodyParser from "body-parser";
-import { Sequelize, DataTypes, Model, Op } from "sequelize";
+import {
+  Sequelize,
+  DataTypes,
+  Model,
+  Op,
+  BelongsToManySetAssociationsMixin,
+} from "sequelize";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { seedData } from "./seeding";
+import "dotenv/config";
 import cors from "cors";
 
 // Initialize Express app
@@ -18,63 +25,99 @@ app.use(
 );
 
 // Initialize Sequelize
-const sequelize = new Sequelize("mysql://root:@localhost:3306/cms");
+const sequelize = new Sequelize(
+  process.env.DB || "mysql://root:@localhost:3306/cms"
+);
 
 // Models
 export class Unit extends Model {
-  public id!: number;
-  public username!: string;
-  public password!: string;
   public nama!: string;
-  public unit!: string;
-  public jabatan!: object;
-  public tanggalBergabung!: Date;
 }
 
 Unit.init(
   {
-    nama: { type: DataTypes.STRING, allowNull: false },
-    username: { type: DataTypes.STRING, allowNull: false, unique: true },
-    password: { type: DataTypes.STRING, allowNull: false },
-    unit: { type: DataTypes.STRING, allowNull: false },
-    jabatan: { type: DataTypes.JSON, allowNull: false },
-    tanggalBergabung: { type: DataTypes.DATE, allowNull: false },
+    nama: { type: DataTypes.STRING, allowNull: false, unique: true },
   },
   { sequelize, modelName: "Unit" }
 );
 
 // Jabatan Model
 export class Jabatan extends Model {
-  public id!: number;
   public nama!: string;
 }
 
 Jabatan.init(
   {
-    nama: { type: DataTypes.STRING, allowNull: false },
+    nama: { type: DataTypes.STRING, allowNull: false, unique: true },
   },
   { sequelize, modelName: "Jabatan" }
 );
 
+// Employee Model
+export class Employee extends Model {
+  public nama!: string;
+  public username!: string;
+  public password!: string;
+  public unitName!: string;
+  public tanggalBergabung!: Date;
+  public setJabatans!: BelongsToManySetAssociationsMixin<Jabatan, number>;
+}
+
+Employee.init(
+  {
+    nama: { type: DataTypes.STRING, allowNull: false },
+    username: { type: DataTypes.STRING, allowNull: false, unique: true },
+    password: { type: DataTypes.STRING, allowNull: false },
+    unitName: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      references: { model: "Units", key: "nama" },
+    },
+    tanggalBergabung: { type: DataTypes.DATE, allowNull: false },
+  },
+  { sequelize, modelName: "Employee" }
+);
+
+// Define associations
+Unit.hasMany(Employee, { foreignKey: "unitName", as: "employees" });
+Employee.belongsTo(Unit, { foreignKey: "unitName", as: "unit" });
+
+Employee.belongsToMany(Jabatan, {
+  through: "EmployeeJabatan",
+  foreignKey: "employeeId",
+  otherKey: "jabatanNama",
+  as: "jabatans",
+});
+Jabatan.belongsToMany(Employee, {
+  through: "EmployeeJabatan",
+  foreignKey: "jabatanNama",
+  otherKey: "employeeId",
+  as: "employees",
+});
+
 export class LoginHistory extends Model {
   public id!: number;
-  public unitId!: number;
+  public username!: string;
   public loginAt!: Date;
 }
 
 LoginHistory.init(
   {
-    unitId: {
-      type: DataTypes.INTEGER,
+    username: {
+      type: DataTypes.STRING,
       allowNull: false,
-      references: { model: "Units", key: "id" },
+      references: { model: "Employees", key: "username" },
     },
     loginAt: { type: DataTypes.DATE, allowNull: false },
   },
   { sequelize, modelName: "LoginHistory" }
 );
 
-// seedData();
+LoginHistory.belongsTo(Employee, { foreignKey: "username", as: "employee" });
+
+if (process.env.USE_SEEDING === "true") {
+  seedData();
+}
 
 // Sync database
 sequelize
@@ -105,106 +148,205 @@ const authenticateToken = (req: Request, res: Response, next: Function) => {
 // Login
 app.post("/login", async (req: Request, res: Response) => {
   const { username, password } = req.body;
-  const unit = await Unit.findOne({ where: { username } });
+  const employee = await Employee.findOne({ where: { username } });
 
-  if (!unit) return res.status(404).json({ message: "User not found" });
+  if (!employee) return res.status(404).json({ message: "User not found" });
 
-  const validPassword = await bcrypt.compare(password, unit.password);
+  const validPassword = await bcrypt.compare(password, employee.password);
   console.log(validPassword);
   if (!validPassword)
     return res.status(401).json({ message: "Invalid credentials" });
 
   const token = jwt.sign(
-    { id: unit.id, username: unit.username },
+    { nama: employee.nama, username: employee.username },
     "SECRET_KEY",
     { expiresIn: "1h" }
   );
 
   // Save the login history
   await LoginHistory.create({
-    unitId: unit.id,
+    username: employee.username,
     loginAt: new Date(),
   });
 
   res.json({ token });
 });
 
-// CRUD for Unit
-app.post("/units", authenticateToken, async (req: Request, res: Response) => {
-  const { nama, username, password, unit, jabatan, tanggalBergabung } =
-    req.body;
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  try {
-    const newUnit = await Unit.create({
-      nama,
-      username,
-      password: hashedPassword,
-      unit,
-      jabatan,
-      tanggalBergabung,
-    });
-    res.status(201).json(newUnit);
-  } catch (err: any) {
-    res.status(400).json({ message: err.message });
-  }
-});
-
-app.get("/units", authenticateToken, async (req: Request, res: Response) => {
-  const units = await Unit.findAll();
-  res.json(units);
-});
-
-app.get(
-  "/units/:id",
+// CRUD for Employee
+app.post(
+  "/employees",
   authenticateToken,
   async (req: Request, res: Response) => {
-    const unit = await Unit.findByPk(req.params.id);
-    if (!unit) return res.status(404).json({ message: "Unit not found" });
-    res.json(unit);
-  }
-);
-
-app.put(
-  "/units/:id",
-  authenticateToken,
-  async (req: Request, res: Response) => {
-    const { nama, username, password, unit, jabatan, tanggalBergabung } =
+    const { nama, username, password, unitName, jabatan, tanggalBergabung } =
       req.body;
-    const unitToUpdate = await Unit.findByPk(req.params.id);
-
-    if (!unitToUpdate)
-      return res.status(404).json({ message: "Unit not found" });
 
     try {
-      const hashedPassword = password
-        ? await bcrypt.hash(password, 10)
-        : unitToUpdate.password;
-      await unitToUpdate.update({
+      // Validate Unit
+      const unit = await Unit.findOne({ where: { nama: unitName } });
+      if (!unit) Unit.create({ nama: unitName });
+
+      // Hash Password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Create Employee
+      const newEmployee = await Employee.create({
         nama,
         username,
         password: hashedPassword,
-        unit,
-        jabatan,
+        unitName,
         tanggalBergabung,
       });
-      res.json(unitToUpdate);
+
+      // Associate Jabatans
+      if (jabatan && jabatan.length > 1) {
+        const jabatans = await Jabatan.findAll({ where: { nama: jabatan } });
+        if (jabatans.length !== jabatan.length) {
+          return res
+            .status(400)
+            .json({ message: "Some jabatan names are invalid" });
+        }
+        await newEmployee.setJabatans(jabatans);
+      }
+      if (jabatan && jabatan.length === 1) {
+        Jabatan.create({ nama: jabatan[0] });
+        await newEmployee.setJabatans(jabatan);
+      }
+
+      // Include associations in the response
+      const employeeWithAssociations = await Employee.findByPk(
+        newEmployee.username,
+        {
+          include: [
+            { model: Unit, as: "unit" },
+            { model: Jabatan, as: "jabatans" },
+          ],
+        }
+      );
+
+      res.status(201).json(employeeWithAssociations);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
     }
   }
 );
 
-app.delete(
-  "/units/:id",
+// GET /employees - Get all employees with associations
+app.get(
+  "/employees",
   authenticateToken,
   async (req: Request, res: Response) => {
-    const unitToDelete = await Unit.findByPk(req.params.id);
-    if (!unitToDelete)
-      return res.status(404).json({ message: "Unit not found" });
+    try {
+      const employees = await Employee.findAll({
+        include: [
+          { model: Unit, as: "unit" },
+          { model: Jabatan, as: "jabatans" },
+        ],
+      });
+      res.json(employees);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
 
-    await unitToDelete.destroy();
-    res.json({ message: "Unit deleted successfully" });
+// GET /employees/:id - Get a specific employee with associations
+app.get(
+  "/employees/:id",
+  authenticateToken,
+  async (req: Request, res: Response) => {
+    try {
+      const employee = await Employee.findByPk(req.params.id, {
+        include: [
+          { model: Unit, as: "unit" },
+          { model: Jabatan, as: "jabatans" },
+        ],
+      });
+      if (!employee)
+        return res.status(404).json({ message: "Employee not found" });
+      res.json(employee);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  }
+);
+
+// PUT /employees/:id - Update an employee with associations
+app.put(
+  "/employees/:id",
+  authenticateToken,
+  async (req: Request, res: Response) => {
+    const { nama, username, password, unitName, jabatan, tanggalBergabung } =
+      req.body;
+
+    try {
+      // Find Employee
+      const employeeToUpdate = await Employee.findByPk(req.params.id);
+      if (!employeeToUpdate)
+        return res.status(404).json({ message: "Employee not found" });
+
+      // Validate Unit
+      if (unitName) {
+        const unit = await Unit.findOne({ where: { nama: unitName } });
+        if (!unit) return res.status(400).json({ message: "Invalid unitName" });
+      }
+
+      // Update Employee
+      const hashedPassword = password
+        ? await bcrypt.hash(password, 10)
+        : employeeToUpdate.password;
+
+      await employeeToUpdate.update({
+        nama,
+        username,
+        password: hashedPassword,
+        unitName,
+        tanggalBergabung,
+      });
+
+      // Update Jabatans
+      if (jabatan) {
+        const jabatans = await Jabatan.findAll({ where: { nama: jabatan } });
+        if (jabatans.length !== jabatan.length) {
+          return res
+            .status(400)
+            .json({ message: "Some jabatan names are invalid" });
+        }
+        await employeeToUpdate.setJabatans(jabatans);
+      }
+
+      // Include associations in the response
+      const updatedEmployee = await Employee.findByPk(
+        employeeToUpdate.username,
+        {
+          include: [
+            { model: Unit, as: "unit" },
+            { model: Jabatan, as: "jabatans" },
+          ],
+        }
+      );
+
+      res.json(updatedEmployee);
+    } catch (err: any) {
+      res.status(400).json({ message: err.message });
+    }
+  }
+);
+
+// DELETE /employees/:id - Delete an employee
+app.delete(
+  "/employees/:id",
+  authenticateToken,
+  async (req: Request, res: Response) => {
+    try {
+      const employeeToDelete = await Employee.findByPk(req.params.id);
+      if (!employeeToDelete)
+        return res.status(404).json({ message: "Employee not found" });
+
+      await employeeToDelete.destroy();
+      res.json({ message: "Employee deleted successfully" });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
   }
 );
 
@@ -266,12 +408,86 @@ app.delete(
   }
 );
 
+app.post("/units", async (req, res) => {
+  try {
+    const { nama } = req.body;
+    if (!nama) {
+      return res.status(400).json({ error: "Name is required" });
+    }
+    const unit = await Unit.create({ nama });
+    res.status(201).json(unit);
+  } catch (error) {
+    console.error("Error creating unit:", error);
+    res.status(500).json({ error: "Failed to create unit" });
+  }
+});
+
+// Get all Units
+app.get("/units", authenticateToken, async (req, res) => {
+  try {
+    const units = await Unit.findAll();
+    res.status(200).json(units);
+  } catch (error) {
+    console.error("Error retrieving units:", error);
+    res.status(500).json({ error: "Failed to retrieve units" });
+  }
+});
+
+// Get a single Unit by ID
+app.get("/units/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const unit = await Unit.findByPk(id, { include: "employees" }); // Include associated employees
+    if (!unit) {
+      return res.status(404).json({ error: "Unit not found" });
+    }
+    res.status(200).json(unit);
+  } catch (error) {
+    console.error("Error retrieving unit:", error);
+    res.status(500).json({ error: "Failed to retrieve unit" });
+  }
+});
+
+// Update a Unit
+app.put("/units/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nama } = req.body;
+    const unit = await Unit.findByPk(id);
+    if (!unit) {
+      return res.status(404).json({ error: "Unit not found" });
+    }
+    if (nama) unit.nama = nama;
+    await unit.save();
+    res.status(200).json(unit);
+  } catch (error) {
+    console.error("Error updating unit:", error);
+    res.status(500).json({ error: "Failed to update unit" });
+  }
+});
+
+// Delete a Unit
+app.delete("/units/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const unit = await Unit.findByPk(id);
+    if (!unit) {
+      return res.status(404).json({ error: "Unit not found" });
+    }
+    await unit.destroy();
+    res.status(204).send(); // No content response
+  } catch (error) {
+    console.error("Error deleting unit:", error);
+    res.status(500).json({ error: "Failed to delete unit" });
+  }
+});
+
 // endpoint to display the requested statistics
 app.get("/stats", authenticateToken, async (req: Request, res: Response) => {
   const { startDate, endDate } = req.query; // Time filter parameters (optional)
 
   try {
-    // Size of Units
+    // Size of Unit
     const unitCount = await Unit.count();
 
     // Size of Jabatan
@@ -280,15 +496,30 @@ app.get("/stats", authenticateToken, async (req: Request, res: Response) => {
     // Top 10 users who logged in more than 25 times with optional time filter
     const loginHistoryQuery: any = {
       attributes: [
-        "unitId",
-        [sequelize.fn("COUNT", sequelize.col("unitId")), "loginCount"],
+        [sequelize.col("LoginHistory.username"), "username"],
+        [
+          sequelize.fn("COUNT", sequelize.col("LoginHistory.username")),
+          "loginCount",
+        ],
       ],
-      group: ["unitId"],
-      having: sequelize.where(sequelize.fn("COUNT", sequelize.col("unitId")), {
-        [Op.gt]: 25,
-      }), // Only units with more than 25 logins
-      order: [[sequelize.fn("COUNT", sequelize.col("unitId")), "DESC"]],
+      group: ["LoginHistory.username"],
+      having: sequelize.where(
+        sequelize.fn("COUNT", sequelize.col("LoginHistory.username")),
+        {
+          [Op.gt]: 25,
+        }
+      ),
+      order: [
+        [sequelize.fn("COUNT", sequelize.col("LoginHistory.username")), "DESC"],
+      ],
       limit: 10,
+      include: [
+        {
+          model: Employee,
+          as: "employee",
+          attributes: ["nama"],
+        },
+      ],
     };
 
     if (startDate && endDate) {
@@ -298,15 +529,43 @@ app.get("/stats", authenticateToken, async (req: Request, res: Response) => {
         },
       };
     }
+    const loginCountQuery = {
+      where: {},
+    };
+    if (startDate && endDate) {
+      loginCountQuery.where = {
+        loginAt: {
+          [Op.between]: [new Date(startDate), new Date(endDate)],
+        },
+      };
+    }
 
+    const employeeCountQuery = {
+      where: {},
+    };
+    if (startDate && endDate) {
+      employeeCountQuery.where = {
+        tanggalBergabung: {
+          [Op.between]: [new Date(startDate), new Date(endDate)],
+        },
+      };
+    }
+    const loginCount = await LoginHistory.count(loginCountQuery);
+
+    // size of login
     const topLoginUsers = await LoginHistory.findAll(loginHistoryQuery);
+
+    // Size of Employee
+    const employeeCount = await Employee.count(employeeCountQuery);
 
     // Prepare response data
     const responseData = {
+      employeeCount,
       unitCount,
       jabatanCount,
+      loginCount,
       topLoginUsers: topLoginUsers.map((entry) => ({
-        unitId: entry.unitId,
+        username: entry.username,
         loginCount: entry.get("loginCount"),
       })),
     };
@@ -321,5 +580,6 @@ app.get("/stats", authenticateToken, async (req: Request, res: Response) => {
 // Start server
 const PORT = 3000;
 app.listen(PORT, () => {
+  console.log(process.env.USE_SEEDING, "Seed");
   console.log(`Server is running on http://localhost:${PORT}`);
 });

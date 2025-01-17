@@ -14,6 +14,14 @@ const Dashboard = () => {
         <ul className="flex flex-col space-y-4">
           <li>
             <Link
+              to="/employees"
+              className="block px-4 py-2 text-blue-600 font-medium hover:bg-blue-50 rounded-md"
+            >
+              Manage Employees
+            </Link>
+          </li>
+          <li>
+            <Link
               to="/units"
               className="block px-4 py-2 text-blue-600 font-medium hover:bg-blue-50 rounded-md"
             >
