@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { fetchStats } from "../api";
 import DataTable from "react-data-table-component";
+import Topbar from "./Topbar";
 
 const Stats = () => {
   const [stats, setStats] = useState(null);
@@ -18,13 +19,6 @@ const Stats = () => {
     };
     getStats();
   }, [startDate, endDate]);
-
-  const handleFilter = () => {
-    if (!startDate || !endDate) {
-      alert("Please select both start and end dates");
-      return;
-    }
-  };
 
   const columns = [
     {
@@ -54,6 +48,7 @@ const Stats = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-6">
       <div className="bg-white shadow-md rounded-lg p-8 w-full max-w-4xl">
+        <Topbar />
         <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
           Statistics
         </h2>

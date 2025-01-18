@@ -11,13 +11,26 @@ API.interceptors.request.use((req) => {
   return req;
 });
 
+// Global error handling
+API.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Redirect to the login page
+      window.location.href = "/";
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Auth endpoints
 export const login = (credentials) => API.post("/login", credentials);
 
 // Employee endpoints
 export const fetchemployees = () => API.get("/employees");
 export const createEmployee = (unitData) => API.post("/employees", unitData);
-export const updateEmployee = (id, unitData) => API.put(`/employees/${id}`, unitData);
+export const updateEmployee = (id, unitData) =>
+  API.put(`/employees/${id}`, unitData);
 export const deleteEmployee = (id) => API.delete(`/employees/${id}`);
 
 // Units endpoints

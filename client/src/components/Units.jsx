@@ -1,21 +1,17 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import DataTable from "react-data-table-component";
+import { createUnit, deleteUnit, fetchUnits, updateUnit } from "../api";
+import Topbar from "./Topbar";
 
 const Units = () => {
   const [units, setUnits] = useState([]);
   const [nama, setNama] = useState("");
   const [editId, setEditId] = useState(null);
 
-  const API_URL = "http://localhost:3000/units"; // Update the endpoint to match your API URL for units
-  const token = localStorage.getItem("authToken");
-
   // Fetch units data
-  const fetchUnits = async () => {
+  const handleFetchUnits = async () => {
     try {
-      const response = await axios.get(API_URL, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetchUnits();
       setUnits(response.data);
     } catch (error) {
       console.error("Error fetching units:", error);
@@ -25,11 +21,7 @@ const Units = () => {
   // Handle adding a new unit
   const handleAddUnit = async () => {
     try {
-      const response = await axios.post(
-        API_URL,
-        { nama },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await createUnit({ nama });
       setUnits([...units, response.data]);
       setNama("");
     } catch (error) {
@@ -46,11 +38,7 @@ const Units = () => {
   // Handle updating the unit
   const handleUpdateUnit = async () => {
     try {
-      const response = await axios.put(
-        `${API_URL}/${editId}`,
-        { nama },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await updateUnit(editId, { nama });
       setUnits(
         units.map((unit) => (unit.id === editId ? response.data : unit))
       );
@@ -64,9 +52,7 @@ const Units = () => {
   // Handle deleting a unit
   const handleDeleteUnit = async (id) => {
     try {
-      await axios.delete(`${API_URL}/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await deleteUnit(id);
       setUnits(units.filter((unit) => unit.id !== id));
     } catch (error) {
       console.error("Error deleting unit:", error);
@@ -75,7 +61,7 @@ const Units = () => {
 
   // Fetch units data on component mount
   useEffect(() => {
-    fetchUnits();
+    handleFetchUnits();
   }, []);
 
   // Define columns for the DataTable
@@ -93,16 +79,16 @@ const Units = () => {
     {
       name: "Actions",
       cell: (row) => (
-        <div className="flex space-x-2">
+        <div className="flex space-x-2 w-70">
           <button
             onClick={() => handleEditUnit(row)}
-            className="px-2 py-1 bg-yellow-500 text-white rounded-md hover:bg-yellow-600"
+            className="px-2 text-sm py-1 bg-yellow-500 text-white rounded-md hover:bg-yellow-600"
           >
             Edit
           </button>
           <button
             onClick={() => handleDeleteUnit(row.id)}
-            className="px-2 py-1 bg-red-500 text-white rounded-md hover:bg-red-600"
+            className="px-2 text-sm py-1 bg-red-500 text-white rounded-md hover:bg-red-600"
           >
             Delete
           </button>
@@ -111,11 +97,14 @@ const Units = () => {
       ignoreRowClick: true,
       allowOverflow: true,
       button: true,
+      width: "200px",
     },
   ];
 
   return (
     <div className="max-w-4xl mx-auto mt-10 p-6 bg-white shadow-md rounded-md">
+      <Topbar />
+
       <h1 className="text-2xl font-bold mb-6 text-gray-700">Manage Units</h1>
       <div className="flex space-x-4 mb-6">
         <input

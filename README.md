@@ -2,6 +2,10 @@
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app) for fe and expressjs and mysql for be and require node => 18 you can adjust db and seed in .env
 
+## Install depedency 
+
+In the client directory, you can run: `npm i` and in backend you can run `yarn`
+
 ## Available Scripts
 
 In the client directory, you can run:

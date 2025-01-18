@@ -55,6 +55,7 @@ Jabatan.init(
 
 // Employee Model
 export class Employee extends Model {
+  public id!: string;
   public nama!: string;
   public username!: string;
   public password!: string;
@@ -115,15 +116,14 @@ LoginHistory.init(
 
 LoginHistory.belongsTo(Employee, { foreignKey: "username", as: "employee" });
 
-if (process.env.USE_SEEDING === "true") {
-  seedData();
-}
-
 // Sync database
 sequelize
   .sync({ force: false })
   .then(() => {
     console.log("Database synced!");
+    if (process.env.USE_SEEDING === "true") {
+      seedData();
+    }
   })
   .catch((err) => {
     console.error("Error syncing database:", err);
@@ -198,31 +198,25 @@ app.post(
       });
 
       // Associate Jabatans
-      if (jabatan && jabatan.length > 1) {
+      if (jabatan && jabatan.length > 0) {
         const jabatans = await Jabatan.findAll({ where: { nama: jabatan } });
         if (jabatans.length !== jabatan.length) {
           return res
             .status(400)
             .json({ message: "Some jabatan names are invalid" });
         }
-        await newEmployee.setJabatans(jabatans);
-      }
-      if (jabatan && jabatan.length === 1) {
-        Jabatan.create({ nama: jabatan[0] });
-        await newEmployee.setJabatans(jabatan);
+        const resp = await newEmployee.setJabatans(jabatans);
+        console.log(resp);
       }
 
       // Include associations in the response
-      const employeeWithAssociations = await Employee.findByPk(
-        newEmployee.username,
-        {
-          include: [
-            { model: Unit, as: "unit" },
-            { model: Jabatan, as: "jabatans" },
-          ],
-        }
-      );
-
+      const employeeWithAssociations = await Employee.findByPk(newEmployee.id, {
+        include: [
+          { model: Unit, as: "unit" },
+          { model: Jabatan, as: "jabatans" },
+        ],
+      });
+      console.log(employeeWithAssociations);
       res.status(201).json(employeeWithAssociations);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
@@ -275,8 +269,15 @@ app.put(
   "/employees/:id",
   authenticateToken,
   async (req: Request, res: Response) => {
-    const { nama, username, password, unitName, jabatan, tanggalBergabung } =
-      req.body;
+    const {
+      id,
+      nama,
+      username,
+      password,
+      unitName,
+      jabatan,
+      tanggalBergabung,
+    } = req.body;
 
     try {
       // Find Employee
@@ -315,15 +316,12 @@ app.put(
       }
 
       // Include associations in the response
-      const updatedEmployee = await Employee.findByPk(
-        employeeToUpdate.username,
-        {
-          include: [
-            { model: Unit, as: "unit" },
-            { model: Jabatan, as: "jabatans" },
-          ],
-        }
-      );
+      const updatedEmployee = await Employee.findByPk(id, {
+        include: [
+          { model: Unit, as: "unit" },
+          { model: Jabatan, as: "jabatans" },
+        ],
+      });
 
       res.json(updatedEmployee);
     } catch (err: any) {

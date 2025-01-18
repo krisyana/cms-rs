@@ -44,10 +44,7 @@ export const seedData = async () => {
     // Create random Employees and assign them to random units and jabatans
     const createdEmployees: any[] = []; // Hold all created employees for easy access
     for (let i = 0; i < 10; i++) {
-      const randomJabatans = faker.helpers.arrayElements(
-        jabatans.map((j) => j.nama),
-        faker.number.int({ min: 1, max: 3 })
-      );
+      const randomJabatans = faker.helpers.arrayElements(jabatans);
 
       const randomUnit = faker.helpers.arrayElement(units); // Random unit for each employee
 
@@ -59,6 +56,7 @@ export const seedData = async () => {
         jabatan: randomJabatans,
         tanggalBergabung: faker.date.past(),
       });
+      await employee.setJabatans(randomJabatans);
 
       // Store the created employee
       createdEmployees.push(employee);

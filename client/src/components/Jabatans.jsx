@@ -1,20 +1,21 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import DataTable from "react-data-table-component";
+import {
+  createJabatan,
+  deleteJabatan,
+  fetchJabatans,
+  updateJabatan,
+} from "../api";
+import Topbar from "./Topbar";
 
 const Jabatans = () => {
   const [jabatans, setJabatans] = useState([]);
   const [nama, setNama] = useState("");
   const [editId, setEditId] = useState(null);
 
-  const API_URL = "http://localhost:3000/jabatan";
-  const token = localStorage.getItem("authToken");
-
-  const fetchJabatans = async () => {
+  const handlefetchJabatans = async () => {
     try {
-      const response = await axios.get(API_URL, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetchJabatans();
       setJabatans(response.data);
     } catch (error) {
       console.error("Error fetching jabatans:", error);
@@ -23,11 +24,7 @@ const Jabatans = () => {
 
   const handleAddJabatan = async () => {
     try {
-      const response = await axios.post(
-        API_URL,
-        { nama },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await createJabatan({ nama });
       setJabatans([...jabatans, response.data]);
       setNama("");
     } catch (error) {
@@ -42,11 +39,7 @@ const Jabatans = () => {
 
   const handleUpdateJabatan = async () => {
     try {
-      const response = await axios.put(
-        `${API_URL}/${editId}`,
-        { nama },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await updateJabatan(editId, { nama });
       setJabatans(
         jabatans.map((jabatan) =>
           jabatan.id === editId ? response.data : jabatan
@@ -61,9 +54,7 @@ const Jabatans = () => {
 
   const handleDeleteJabatan = async (id) => {
     try {
-      await axios.delete(`${API_URL}/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await deleteJabatan(id);
       setJabatans(jabatans.filter((jabatan) => jabatan.id !== id));
     } catch (error) {
       console.error("Error deleting jabatan:", error);
@@ -71,7 +62,7 @@ const Jabatans = () => {
   };
 
   useEffect(() => {
-    fetchJabatans();
+    handlefetchJabatans();
   }, []);
 
   const columns = [
@@ -106,11 +97,13 @@ const Jabatans = () => {
       ignoreRowClick: true,
       allowOverflow: true,
       button: true,
+      width: "200px",
     },
   ];
 
   return (
     <div className="max-w-4xl mx-auto mt-10 p-6 bg-white shadow-md rounded-md">
+      <Topbar />
       <h1 className="text-2xl font-bold mb-6 text-gray-700">Manage Jabatans</h1>
       <div className="flex space-x-4 mb-6">
         <input
